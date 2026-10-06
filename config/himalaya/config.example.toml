@@ -1,0 +1,82 @@
+# ============================================================
+# IMAP / SMTP 配置模板 —— 复制为 config.toml 后填入你自己的账号
+#   cp config/himalaya/config.example.toml config/himalaya/config.toml
+#   cp config/himalaya/secret.example     config/himalaya/secret    # 写入密码
+#
+# config.toml 与 secret 都已 gitignore，不会入库。
+# 密码优先级：MAIL_PASSWORD 环境变量 > password.command > secret 文件
+# ============================================================
+# 配置格式沿用 Himalaya v2 的命名习惯（https://github.com/pimalaya/himalaya）
+
+[accounts.example]
+email = "user@example.com"
+display-name = "Your Name"
+default = true
+
+# ------------------------------------------------------------
+# IMAP（993 端口为隐式 TLS）
+# ------------------------------------------------------------
+imap.server = "imap.example.com:993"
+imap.sasl.login.username = "user@example.com"
+
+# 方式一：用外部命令取密码（适合密码存在别处的场景）
+# imap.sasl.login.password.command = ["/path/to/your-pass-script.sh"]
+
+# 注意：部分服务器（如 Coremail）不接受内联发送凭据，需等待服务端 continuation
+# imap.sasl-ir = false
+
+# ------------------------------------------------------------
+# SMTP（465 端口为隐式 TLS）
+# ------------------------------------------------------------
+smtp.server = "smtp.example.com:465"
+smtp.ssl = true
+
+# ------------------------------------------------------------
+# 邮箱别名：把友好名映射到服务器上的真实目录名
+# 目录名因服务商而异，先用 python run.py sync --dry-run 之类的方式确认
+# ------------------------------------------------------------
+mailbox.alias.inbox = "INBOX"
+mailbox.alias.sent = "Sent"
+mailbox.alias.drafts = "Drafts"
+mailbox.alias.trash = "Trash"
+
+# ============================================================
+# 多邮箱：再加一个 [accounts.<名字>] 就是第二个邮箱
+# ============================================================
+# 名字（英文标识，只允许字母/数字/._-）决定两件事：
+#   1) 密码文件名         -> config/himalaya/secret-<名字>
+#   2) 本地索引库文件名   -> data/mail-<名字>.db
+# 每个账号有各自独立的收件箱/已发送/草稿/联系人/统计，WebUI 顶栏可以随时切换。
+#
+# 密码按账号各取各的，优先级：
+#   1) 环境变量 MAIL_PASSWORD_<名字大写>（非字母数字换成下划线）
+#   2) imap.sasl.login.password.command 指向的脚本
+#   3) config/himalaya/secret-<名字>
+#   4) 仅当「只有一个账号」或该账号 default=true：MAIL_PASSWORD → secret
+#
+# 加完新账号记得同步一次，它的本地索引库是空的：
+#   python run.py sync --all-folders --since 2026-07-01
+
+# [accounts.personal]
+# email = "me@gmail.com"
+# display-name = "Me"
+# imap.server = "imap.gmail.com:993"
+# imap.sasl.login.username = "me@gmail.com"
+# smtp.server = "smtp.gmail.com:465"
+# smtp.ssl = true
+# # Gmail 的目录名和别的服务商不一样，必须显式映射，否则找不到已发送/草稿：
+# mailbox.alias.inbox = "INBOX"
+# mailbox.alias.sent = "[Gmail]/Sent Mail"
+# mailbox.alias.drafts = "[Gmail]/Drafts"
+# mailbox.alias.trash = "[Gmail]/Trash"
+# # Gmail 不接受账号密码，要去 Google 账号里生成「应用专用密码」填进
+# # config/himalaya/secret-personal
+#
+# [accounts.qq]
+# email = "me@qq.com"
+# imap.server = "imap.qq.com:993"
+# smtp.server = "smtp.qq.com:465"
+# mailbox.alias.sent = "Sent Messages"
+#
+# 提示：WebUI 的「邮箱管理」弹窗能增删改这些账号（保存时会整份重写 config.toml，
+# 手写的注释会丢），日常改配置用界面更省事。

@@ -1,0 +1,11 @@
+# Message-cli（email-only 分支）核心依赖
+# 安装： pip install -r requirements.txt
+
+# Web 服务
+fastapi>=0.110
+uvicorn>=0.27
+python-multipart>=0.0.9        # 写邮件上传附件
+
+# 开发可选
+# watchfiles>=0.21             # uvicorn --reload
+# websockets>=12               # WebSocket 支持

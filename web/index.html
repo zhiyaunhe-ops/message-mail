@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="ink" data-page-node-id="vUHVOO9iki9rckYkctd8h2">
+<head data-page-node-id="9kOyytBD1oWaESovNsL1JC">
+<meta charset="UTF-8" data-page-node-id="7MfPb723442GVrC1eh5nMb">
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="l3JoB82SfGfWtcuyvmKhF0">
+<title>信箱 · 消息工作台</title>
+<link rel="icon" type="image/png" href="/static/icon.png" data-page-node-id="LG5vau4fuChjMlSaJXqMSg">
+<link rel="stylesheet" href="/static/style.css" data-page-node-id="HcXuKMY6LjQZxfLVznUCtg">
+</head>
+<body data-page-node-id="euTjSEsrWvXt43GjlIiYaJ">
+<div class="app" data-page-node-id="8Kv2Eibg5OT3L6Cww18Fxs">
+  <header class="topbar" data-page-node-id="brbHOpQXNUuYJCAR89w4yb">
+    <div class="brand" data-page-node-id="wgKXfHpWCGGo8yNTDQSCLG">
+      <span class="brand-mark" data-page-node-id="Bf09aEm5mrIAuwvc5Bw5LS">✉</span>
+      <div class="brand-text" data-page-node-id="8WAFrNUsIRPSHwCcYnktyC">
+        <h1 data-page-node-id="YZxf5LJlycUh1X0zmwBOw8">信箱</h1>
+        <div class="account-picker" data-page-node-id="sBomxZMDXWM7EquomAXuKE">
+          <button type="button" class="account-btn" id="accountBtn" title="切换邮箱 / 管理多个邮箱账号" data-page-node-id="Mt55mdL3kgxq6lmNVEhwsc">
+            <span id="account" data-page-node-id="hXNxylb3SS1ul4eP9wm476">加载中…</span><span class="caret" data-page-node-id="O5010476PbaT9RS984T69d"> ▾</span>
+          </button>
+          <div class="account-menu" id="accountMenu" data-page-node-id="dnxhc0sua5FFDIlEQaY6de"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="search-wrap" data-page-node-id="pzLDhN8YWLmmpZojvdSTHA">
+      <input class="input" id="search" type="search" placeholder="搜索主题 / 发件人 / 正文…（按 / 聚焦）" autocomplete="off" data-page-node-id="UphTpyLRKhlE6sVKMhjYIb">
+      <select class="select" id="range" title="时间范围；手动同步按同一范围拉取" data-page-node-id="HZG5sLFmnUdNhsAkNZOCXH">
+        <option value="d30" data-page-node-id="i8hHDrdGTknl1F6HwMlWAO">近 1 月</option>
+        <option value="d7" data-page-node-id="8DgvgtF9RVfQkKcv7GnYAv">近 7 天</option>
+        <option value="all" data-page-node-id="D0gWGl6BJFuW3v5x5kqo7N">全部时间</option>
+        <option value="custom" data-page-node-id="7dfe4d5b1d8e4cf58ce3cbfb6b7bfe0b">自定义日期…</option>
+      </select>
+      <input class="input date-input" id="rangeDate" type="date" hidden title="时间界线：只显示该日期之后的邮件" data-page-node-id="94ec9a41c3df4e2d8f0c6e6a63c2b7d5">
+    </div>
+
+    <div class="actions" data-page-node-id="WUKwXiu8iya6KjhwQOj3o1">
+      <button class="btn" id="composeBtn" title="写一封新邮件" data-page-node-id="frQHHTUF1S1SIPzrqj9sF7">✏ 写邮件</button>
+      <button class="btn" id="unreadBtn" title="只看未读" data-page-node-id="dyYOvIi23VsS3B2diN1AvF">未读</button>
+      <button class="btn btn-primary" id="syncBtn" data-page-node-id="QiCjJAq18pk1xSMmiNaZOp">同步</button>
+      <button class="btn" id="settingsBtn" title="设置 · AI 接口配置" data-page-node-id="BosPkgFHEYof5BHJikYBWS">⚙</button>
+      <div class="theme-picker" data-page-node-id="CORaLzFcrWuivD4GQCogFN">
+        <button class="btn" id="themeBtn" data-page-node-id="fbSJnL3wMVZHNB2P0P8C1L"><span class="btn-label" data-page-node-id="W7BFB4hJahP9wW31aM0ZDF">主题 · </span><span id="themeName" data-page-node-id="QdyX3CvNSVV5ZlIs4ZENUd">宣纸水墨</span><span class="caret" data-page-node-id="OLB07GuA0lGIyamhrA67yQ"> ▾</span></button>
+        <div class="theme-menu" id="themeMenu" data-page-node-id="9l9iDUXocDteWZh8kdPIhE"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout" id="mailView" data-page-node-id="v7qTZMGkoBdGg4s4TcClG8">
+    <aside class="sidebar" data-page-node-id="PeukrOGIA6snCMd4bts22t">
+      <div class="side-title" data-page-node-id="zG97zLddGo3XElW9AmpEPA">目录</div>
+      <ul id="folders" data-page-node-id="JVKLtdUDXgAniJ5kdF1Ymh"></ul>
+      <div class="side-stats" id="stats" data-page-node-id="SBgJY4PSCKzk83CAtBojPG"></div>
+    </aside>
+
+    <section class="list-pane" data-page-node-id="KPkGLoWGaB9sCSg1ONJpK9">
+      <div class="list-head" data-page-node-id="fUA08yRcg1809L73qVQaE4">
+        <div class="seg view-seg" id="viewSeg" data-page-node-id="RBXoMUiUSEs1BojRagaj8x">
+          <button data-view="message" class="active" title="普通邮件列表" data-page-node-id="Y1NbOHXGc1fAZhe7K30gZp">邮件</button>
+          <button data-view="thread" title="按来回复分组，聊天式阅读" data-page-node-id="Qq0kNOOjKjQovzXHYJbR2p">会话</button>
+        </div>
+        <select class="select cat-select" id="category" title="按分类筛选" data-page-node-id="AJwsDWAAl9Uxd2579F3kr5">
+          <option value="all" data-page-node-id="w0lgHcYCmdGYRDlfSuexfI">全部分类</option>
+          <option value="personal" data-page-node-id="guPO9Cyy4dROeU6gi3aVgP">只看人工</option>
+          <option value="boring" data-page-node-id="tBugNprFqgCPHnFfo1kEoE">只看无聊</option>
+          <option value="meeting" data-page-node-id="duEqj7AdCwlR2foCUd4oVj">📅 会议/日程</option>
+          <option value="automated" data-page-node-id="fzucM17p56YNzxHeK7p1nT">🤖 系统自动</option>
+          <option value="promotion" data-page-node-id="AjLeUKna5sFGHVxDYk0sLq">📢 营销推广</option>
+        </select>
+        <span class="list-head-title" id="listTitle" data-page-node-id="LAYW0lQk2JYxD31o9iV3nJ">收件箱</span>
+        <span class="list-head-count" id="listCount" data-page-node-id="hkeVStyWwCjpkioqDYMGjo"></span>
+      </div>
+      <div class="list" id="messageList" data-page-node-id="HsubTIYcv6LFjMt8kfEzK1"><div class="empty" data-page-node-id="0WV5VGAlBzga2aXRa3DBGC">加载中…</div></div>
+      <div class="list-foot" data-page-node-id="g7IFUHk4PokF3ryEjS2XDe"><button class="btn" id="moreBtn" data-page-node-id="DrGdGKhTRdJRvDEFAJFcST">加载更多</button></div>
+    </section>
+
+    <section class="reader" id="reader" data-page-node-id="E3BiQ1ASHyJ90GGixsqTen">
+      <div class="empty" data-page-node-id="IN1Ipxe5JuiY4HeTLROR2z">选择一封邮件开始阅读</div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast" data-page-node-id="FiVfzWp8GxCHqiXgP4XWmE"></div>
+
+<div class="modal-mask" id="composeModal" hidden data-page-node-id="uSTrfFZ3r47nHnKehmH3aj">
+  <div class="modal" data-page-node-id="QjvtbcydL83zmWwMGL6FlS">
+    <div class="modal-head" data-page-node-id="muu8y565RdTFW2YyOrVZza">
+      <h3 id="composeTitle" data-page-node-id="CCsTMjkmlE92SEVRTnBq8l">写邮件</h3>
+      <button class="modal-close" id="composeClose" title="关闭" data-page-node-id="ev8CzVxmjnMUeQ4WfP2kqm">×</button>
+    </div>
+    <form id="composeForm" data-page-node-id="aveulIxKzaRZdHWlriN7p9">
+      <div class="chip-field" id="cToField" data-page-node-id="M16TFzjG7Xy1bLNbxkw0Wn">
+        <div class="chips" id="cToChips" data-page-node-id="hncZCIykuCIbFwVqGE0MAV"></div>
+        <input class="chip-input" id="cTo" type="text" autocomplete="off" spellcheck="false"
+               placeholder="收件人（输入姓名或邮箱，回车 / 逗号确认）" data-page-node-id="E0ExjvJmdhXsmPiFsJS4sT">
+        <div class="chip-menu" id="cToMenu" hidden data-page-node-id="hAtgpWsKB7ltTb6tRGHvrM"></div>
+      </div>
+      <div class="chip-field" id="cCcField" data-page-node-id="tXSknKnsU1WrHmZEhQoB9t">
+        <div class="chips" id="cCcChips" data-page-node-id="tvBwPAWDa4u7aQ9eOdC5Yt"></div>
+        <input class="chip-input" id="cCc" type="text" autocomplete="off" spellcheck="false"
+               placeholder="抄送（可选）" data-page-node-id="zrDcxoWjZRBWBEiZmjvs6i">
+        <div class="chip-menu" id="cCcMenu" hidden data-page-node-id="2X39kumecEwwAIioAjx810"></div>
+      </div>
+      <input class="input" id="cSubject" placeholder="主题" autocomplete="off" data-page-node-id="tq5EwiLrNliuWjM89lE43f">
+      <textarea class="input" id="cBody" rows="11" placeholder="正文…"></textarea>
+      <div class="ai-opts" id="aiOpts" hidden data-page-node-id="Mdg8aOUrDs98YwPdUM9GuD"></div>
+      <div class="file-list" id="cFileList" hidden data-page-node-id="1itfO2ABCC4Y8ozOjrQDeP"></div>
+      <div class="compose-row" data-page-node-id="s74qFXlZaOfgrlBsU6IphF">
+        <label class="file-btn" id="cFileBtn" data-page-node-id="hNgPniQCbn3g9F1zWWiN0o">📎 添加附件<input id="cFiles" type="file" multiple hidden data-page-node-id="hL9dHqlJKjCQmHw8OkgHFY"></label>
+        <button type="button" class="btn btn-ai" id="aiBtn"
+                title="读取与收件人的最近往来邮件 + 当前标题正文，让 AI 给出 3 个场景的正文与主题" data-page-node-id="q1UnTFLhyK4FVF8fceSGiY">✨ AI 写正文</button>
+        <button type="button" class="btn btn-ai" id="aiToggle" hidden
+                title="重新展开上一次 AI 给出的方案" data-page-node-id="71f3hVDnZB8umQcHxPIKAB">✨ AI 建议</button>
+        <span class="file-names" id="cFileNames" data-page-node-id="2jOxibUHIqyhAjCfHA5kzI"></span>
+      </div>
+      <div class="modal-foot" data-page-node-id="3VCGyutrxagBeCEUtGEliB">
+        <span class="compose-status" id="composeStatus" data-page-node-id="QwLDxtYnyZky6f37nXw7eC"></span>
+        <span class="draft-status" id="draftStatus" data-page-node-id="FUVb8DCaVH19fYxZJGT0ee"></span>
+        <button type="button" class="btn" id="composeCancel" data-page-node-id="bIMnT0G3YD96FFwilDZYzJ">取消</button>
+        <button type="submit" class="btn btn-primary" id="sendBtn" data-page-node-id="UfLA1M6owB7oKLXKwLpprs">发送 ➤</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-mask" id="settingsModal" hidden data-page-node-id="AOtQhzKvghlStK12Bf5UXf">
+  <div class="modal" data-page-node-id="t9mEmFIaui9HZwEk8prXmf">
+    <div class="modal-head" data-page-node-id="9AelXRkFcoStdH9S8IcHVs">
+      <h3 data-page-node-id="4UmI9D2vjF3kpxvRnPFkLo">设置</h3>
+      <button class="modal-close" id="settingsClose" title="关闭" data-page-node-id="PvCeNaHTCgm8JL6Y3GBTT8">×</button>
+    </div>
+    <form id="settingsForm" data-page-node-id="GDzomPaBIvb1D0rGWyKJzu">
+      <p class="settings-hint" data-page-node-id="bJxrq3m3JDLxiM296Jq0JZ">
+        共同配置存放于 <code data-page-node-id="K9p4xha37Kuiqknk5cSef9">config/app.toml</code>（已 gitignore，不会入库），改完立即生效。<br data-page-node-id="aS0pjCGPRCPuko3OSeHgIH">
+        AI 任何 OpenAI 兼容接口都能用：OpenAI / DeepSeek / 通义 / Kimi / 本地 Ollama 的 <code data-page-node-id="AkqrZAIKjkdBvhTJ0yPkqr">/v1</code>。
+      </p>
+      <div class="settings-sub" data-page-node-id="6b1f5c9a2d3e4f5a8b7c9d0e1f2a3b4c">AI 写正文</div>
+      <label class="field" data-page-node-id="FAiIrgR8X2FFnvorHsKekr"><span data-page-node-id="U3tCkXTa7EwFiTQhBORhxf">接口地址 base_url</span>
+        <input class="input" id="cfgBaseUrl" placeholder="https://api.openai.com/v1" autocomplete="off" data-page-node-id="3Mg3HTC6jgsLQl50cADooc"></label>
+      <label class="field" data-page-node-id="d8AJjMnpRaVI55M7OwKdju"><span data-page-node-id="B3nYbbY91VNrBba7cN1FPS">API Key</span>
+        <input class="input" id="cfgApiKey" type="password" placeholder="留空表示不修改已保存的密钥" autocomplete="new-password" data-page-node-id="avQ33VRnIJCswFB4UHb8ze"></label>
+      <label class="field" data-page-node-id="uLMWU3VqelqAZkYMXfNAkh"><span data-page-node-id="r07JLkmLffRyDqg0orhpNk">模型 model</span>
+        <input class="input" id="cfgModel" placeholder="gpt-4o-mini" autocomplete="off" data-page-node-id="aVeoSGK9Sczmb4pHCmJa9K"></label>
+      <div class="field-grid" data-page-node-id="39Soim84RPXizsRPj3qKrK">
+        <label class="field" data-page-node-id="l6Hvu4BX5GYt3Xha1zbDDH"><span data-page-node-id="UoqSYjXcBAu7S2pwOMcjak">温度</span>
+          <input class="input" id="cfgTemp" type="number" step="0.1" min="0" max="2" data-page-node-id="MIIIVjfkCRrbgATzYKDwti"></label>
+        <label class="field" data-page-node-id="ZuVbKGy8kkUnKkCxjq4xDC"><span data-page-node-id="xRZ3gxTtGuOZNd1q2csNyH">超时（秒）</span>
+          <input class="input" id="cfgTimeout" type="number" min="5" max="300" data-page-node-id="qcLyOZwCUGN8vCGEpFrerT"></label>
+        <label class="field" data-page-node-id="10IEBEHYmM2bcX28xDLbtm"><span data-page-node-id="yUw8H2Ejtw5JopRSOstbjc">参考邮件数</span>
+          <input class="input" id="cfgRecent" type="number" min="1" max="30" data-page-node-id="zh5BqeuQeITczpp0wbXEF4"></label>
+        <label class="field" data-page-node-id="65lr1arzqSeWFA2sF8T3GW"><span data-page-node-id="BWCCuM0P1EfIpBPSF6bSIJ">单封截断（字）</span>
+          <input class="input" id="cfgCtxChars" type="number" min="200" max="6000" data-page-node-id="8A3S8Fr1R3tER2qV8lJBX5"></label>
+      </div>
+      <label class="switch" data-page-node-id="fvM6vGj9XzAyrlp2dYH6Ek"><input type="checkbox" id="cfgEnabled" data-page-node-id="KyFIxAZHMtJLRmfoxuctxP"><span data-page-node-id="THn0RGvhSHNpPRwgK3kUB9">启用 AI 写正文</span></label>
+
+      <div class="settings-sub" data-page-node-id="a1c2e3f4059b47d8a6c5e4b3d2f1a0c9">同步</div>
+      <p class="settings-hint" data-page-node-id="f0e1d2c3b4a5968778695a4b3c2d1e0f">
+        后台自动同步用来兜住「没人点同步按钮」的时段；手动点顶栏「同步」时，按上方筛选框选的时间范围拉取。
+      </p>
+      <div class="field-grid" data-page-node-id="b7c8d9e0f1a2b3c4d5e6f708192a3b4c">
+        <label class="field" data-page-node-id="c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6"><span data-page-node-id="d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6">自动同步间隔（分钟）</span>
+          <input class="input" id="cfgSyncInterval" type="number" min="1" max="1440" data-page-node-id="e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6"></label>
+        <label class="field" data-page-node-id="f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6"><span data-page-node-id="a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7">自动同步回溯（天）</span>
+          <input class="input" id="cfgSyncAutoDays" type="number" min="0" max="365" data-page-node-id="b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"></label>
+        <label class="field" data-page-node-id="c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7"><span data-page-node-id="d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7">启动同步回溯（天）</span>
+          <input class="input" id="cfgSyncStartupDays" type="number" min="0" max="365" data-page-node-id="e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7"></label>
+        <label class="field" data-page-node-id="f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7"><span data-page-node-id="a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8">单目录每轮正文上限</span>
+          <input class="input" id="cfgSyncBodyLimit" type="number" min="0" max="100000" placeholder="0 = 不限" data-page-node-id="b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8"></label>
+      </div>
+      <div class="acc-switches" data-page-node-id="c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8">
+        <label class="switch" data-page-node-id="d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8"><input type="checkbox" id="cfgSyncAuto" data-page-node-id="e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8"><span data-page-node-id="f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8">启用后台自动同步</span></label>
+        <label class="switch" data-page-node-id="a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9"><input type="checkbox" id="cfgSyncStartup" data-page-node-id="b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9"><span data-page-node-id="c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9">启动服务时同步一次</span></label>
+        <label class="switch" data-page-node-id="d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9"><input type="checkbox" id="cfgSyncBody" data-page-node-id="e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9"><span data-page-node-id="f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9">同步时抓正文与附件</span></label>
+      </div>
+      <div class="settings-meta" id="settingsSyncMeta" data-page-node-id="a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0"></div>
+
+      <div class="settings-sub" data-page-node-id="b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1">引用头时区</div>
+      <p class="settings-hint" data-page-node-id="c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2">
+        回复 / 转发时，引用头里那行「Sent: …」按哪个时区印。服务就跑在你本机时留空即可；跑在容器或别的时区主机上时必须填，否则引用时间会静默偏掉。
+      </p>
+      <div class="field-grid" data-page-node-id="d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3">
+        <label class="field" data-page-node-id="e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4"><span data-page-node-id="f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5">UTC 偏移</span>
+          <input class="input" id="cfgTzOffset" type="text" placeholder="留空 = 服务器本地时区，如 +08:00" data-page-node-id="a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"></label>
+      </div>
+      <div class="settings-meta" id="settingsDisplayMeta" data-page-node-id="b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"></div>
+      <div class="settings-meta" id="settingsMeta" data-page-node-id="xayHrX0dGVTWl8SLd7w5Y5"></div>
+      <div class="modal-foot" data-page-node-id="Icdk0hJpQzzbPylv1TM7b3">
+        <span class="compose-status" id="settingsStatus" data-page-node-id="xA0vdONHkw8iDDm53xvmox"></span>
+        <button type="button" class="btn" id="cfgSyncNow" title="立刻用自动同步的时间窗跑一轮（不等待下一个间隔）" data-page-node-id="b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0">立即同步</button>
+        <button type="button" class="btn" id="cfgTest" title="先保存当前填写的内容，再发一条最小请求验证连通性" data-page-node-id="wQHWBMwNsgYIgkL2plRej0">测试连接</button>
+        <button type="button" class="btn" id="settingsCancel" data-page-node-id="jbY8A7UIrzmXG60ty3hwjZ">取消</button>
+        <button type="submit" class="btn btn-primary" data-page-node-id="SQE8tAX3MCMtkn5LfEvokw">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-mask" id="accountsModal" hidden data-page-node-id="fxRJFRNB6ZfdAKqXvg4S7A">
+  <div class="modal modal-wide" data-page-node-id="wmYvuiRCo300IwXu1zoGyw">
+    <div class="modal-head" data-page-node-id="EO87Uiu42wMBLZfz2yAGoj">
+      <h3 data-page-node-id="5NFYXz4uqBvfTcF1qxlErj">邮箱管理</h3>
+      <button class="modal-close" id="accountsClose" title="关闭" data-page-node-id="6KAVW0GC3orH5liADLwWwQ">×</button>
+    </div>
+    <div class="accounts-wrap" data-page-node-id="1328YWJVxXSnE8EOgzPDKo">
+      <div class="accounts-list" id="accountsList" data-page-node-id="NkmXNOybAIWdQvHBykO66S"><div class="empty" data-page-node-id="LXOweA16rLVjEqr3bj3Z1S">加载中…</div></div>
+      <form id="accountForm" data-page-node-id="ud78LzZUBlHXV5Nsvm1Sjy">
+        <p class="settings-hint" data-page-node-id="RLLyjz5zUlCCErFoeGZtV4">
+          账号写在 <code data-page-node-id="anZF5On3hTupk6hc4F5dUI">config/himalaya/config.toml</code>（已 gitignore），密码另存 <code data-page-node-id="4i7vhLqkZxxCYDgRDz2X8S">secret-&lt;账号名&gt;</code>，同样不入库。<br data-page-node-id="icGKjVkWgqHbSDaEiXTMXo">
+          每个账号有各自独立的本地索引与收件箱，切换后目录 / 联系人 / 统计都会跟着换。<br data-page-node-id="WSptA0tdLbDGTy9379p467">
+          Gmail 需用「应用专用密码」：IMAP <code data-page-node-id="vSepddOTLy7AfwysRgNmkx">imap.gmail.com:993</code>，目录别名填 <code data-page-node-id="XZVIsUZ5MFiWLKHObV6mUQ">[Gmail]/Sent Mail</code> / <code data-page-node-id="H4J9pYtpxHJdUuFwucxf1h">[Gmail]/Drafts</code> / <code data-page-node-id="qbsR8RJfmZe3K7I1jP7Xk7">[Gmail]/Trash</code>。
+        </p>
+        <div class="field-grid cols-2" data-page-node-id="DVk482eG6unhRmnfYMXBbT">
+          <label class="field" data-page-node-id="U0aij7u0XTAovHEx3bl2ug"><span data-page-node-id="68gV8MRkTk7SJpiJYaHXQF">账号名（英文标识）</span>
+            <input class="input" id="accName" placeholder="work" autocomplete="off" data-page-node-id="qdDsyttKH3RlBEXYBg54ta"></label>
+          <label class="field" data-page-node-id="i4oa5qxaYgVAM2DTmrX8p8"><span data-page-node-id="C8QadRt9yF5pOaaF0dj3VJ">邮箱地址</span>
+            <input class="input" id="accEmail" placeholder="you@example.com" autocomplete="off" data-page-node-id="DVMfK47uFpBczeQtYqcI6J"></label>
+        </div>
+        <div class="field-grid cols-2" data-page-node-id="FTQTOwVkTiD8wU9rkBeou4">
+          <label class="field" data-page-node-id="r8LxYiOETbUWhBgWDU5IM7"><span data-page-node-id="FoDHEvuVJKYWKERNUyINRF">显示名</span>
+            <input class="input" id="accDisplay" placeholder="Your Name" autocomplete="off" data-page-node-id="V6ymsiq4cGJZGQEttST9WL"></label>
+          <label class="field" data-page-node-id="g55BmLfOrczZtgalpRIAuW"><span data-page-node-id="AfSWFsoPXvdn33fjume37Z">登录用户名（与邮箱不同才填）</span>
+            <input class="input" id="accUser" placeholder="默认同邮箱地址" autocomplete="off" data-page-node-id="GvXs0vyzG2SgfLRQRVW6DJ"></label>
+        </div>
+        <div class="field-grid cols-2" data-page-node-id="Z1H6dtzvtGTsxJJTM5VoWw">
+          <label class="field" data-page-node-id="lX9srdAaxpObbyo0M098IH"><span data-page-node-id="s6TpTkDze9E5hBrg9YZ3CT">IMAP 服务器</span>
+            <input class="input" id="accImapHost" placeholder="imap.example.com" autocomplete="off" data-page-node-id="Zfk4SI2JruMq2a2p35L9Tu"></label>
+          <label class="field" data-page-node-id="W2xwzxADF4eoJXGTu0eVVD"><span data-page-node-id="OMww7QpqAiLcjcTjGZ9Kfy">IMAP 端口</span>
+            <input class="input" id="accImapPort" type="number" min="1" max="65535" placeholder="993" data-page-node-id="wffMWUphRfSDNqdDde8ujl"></label>
+          <label class="field" data-page-node-id="O6IfBWk9BZ0WUp0aSkyiMb"><span data-page-node-id="wndM8eS0v5048Gk5wwReU0">SMTP 服务器</span>
+            <input class="input" id="accSmtpHost" placeholder="留空 = 同 IMAP 主机" autocomplete="off" data-page-node-id="x5PX9tUppKZ8CFpQKuSUUy"></label>
+          <label class="field" data-page-node-id="W6T0RdvpFuHroZHpqZtoW1"><span data-page-node-id="QywPtQXzjhAyGOeTk8GwL8">SMTP 端口</span>
+            <input class="input" id="accSmtpPort" type="number" min="1" max="65535" placeholder="465" data-page-node-id="4AZB3Up7WIgXcuaQBfdqz6"></label>
+        </div>
+        <label class="field" data-page-node-id="F0curfpgsXvbxwU5nOD4Bt"><span data-page-node-id="4o1U1b8aOv1HvNvBQTKmAg">密码 / 应用专用密码</span>
+          <input class="input" id="accPassword" type="password" placeholder="留空 = 不修改已保存的密码" autocomplete="new-password" data-page-node-id="Ysm1DcGMaqvbPppxGz4hZd"></label>
+        <div class="field-grid" data-page-node-id="VRtVJGytHgWUaW0MDGGA6H">
+          <label class="field" data-page-node-id="HGDhfY9ysiGREdlskr4fXb"><span data-page-node-id="akC0dhXW1F6ReCnbUWhUC8">收件箱目录名</span>
+            <input class="input" id="accAliasInbox" placeholder="INBOX" autocomplete="off" data-page-node-id="oeowwpzlCYrF2wCYDG2ucT"></label>
+          <label class="field" data-page-node-id="PRevWNlV6KFsHDOV9vdzDF"><span data-page-node-id="guMHoY0VAChrKelWd1SUQO">已发送目录名</span>
+            <input class="input" id="accAliasSent" placeholder="Sent Items" autocomplete="off" data-page-node-id="IWYQQHU2mOZpAk09DEsQyu"></label>
+          <label class="field" data-page-node-id="O6RdqyrgziKSmSi7vshH7C"><span data-page-node-id="wi3WsbfALbdOTqYWWz6U9D">草稿目录名</span>
+            <input class="input" id="accAliasDrafts" placeholder="Drafts" autocomplete="off" data-page-node-id="9SF5pqMUEFn7VG0bV9fB2l"></label>
+          <label class="field" data-page-node-id="Quceeyjen8WXY4ZUENj6B0"><span data-page-node-id="KR99fU26AuPAwworgBK9hZ">回收站目录名</span>
+            <input class="input" id="accAliasTrash" placeholder="Trash" autocomplete="off" data-page-node-id="R2Rdi55L4asZ3niJwgD0pF"></label>
+        </div>
+        <div class="acc-switches" data-page-node-id="YOL2kGCxTQ767YONvUwYj4">
+          <label class="switch" data-page-node-id="V0Ou5IYCpvPL8PcCNsJg75"><input type="checkbox" id="accImapSsl" checked data-page-node-id="kUtHuiWnNf8qxniv3fdhm5"><span data-page-node-id="41S4vEzIAAZpfqTigquZqn">IMAP 用 SSL（993）</span></label>
+          <label class="switch" data-page-node-id="Ihh5KyeTRMDxL3DEBtKFGq"><input type="checkbox" id="accSmtpSsl" checked data-page-node-id="uhqhVpCGhLlX5OTvCs4eZ8"><span data-page-node-id="OoKSOFM9FXCI1ZR63DXFes">SMTP 用 SSL（465）</span></label>
+          <label class="switch" data-page-node-id="DC2tc3w3gqKOFGT3EmeNPY"><input type="checkbox" id="accDefault" data-page-node-id="9iOUmOCXcPwFbLINZWS0BP"><span data-page-node-id="bSYEPo2O0TEFcLQeDHRu6s">设为默认账号</span></label>
+        </div>
+        <div class="settings-meta" id="accountMeta" data-page-node-id="wbDBa6gVGwUoIXhlLVB9Bz"></div>
+        <div class="modal-foot" data-page-node-id="TqzaTKys4s0FPLOC4lX5y5">
+          <span class="compose-status" id="accountStatus" data-page-node-id="ISxugUkwOQE2fuWQfdlFyw"></span>
+          <button type="button" class="btn" id="accNewBtn" data-page-node-id="IS8iPnk9EQYC9gGVaWQ2ys">新建</button>
+          <button type="button" class="btn" id="accTestBtn" title="先保存当前填写内容，再真连一次 IMAP 验证" data-page-node-id="2WJVW3bHcXpBO9sBvrpPAW">测试连接</button>
+          <button type="submit" class="btn btn-primary" id="accSaveBtn" data-page-node-id="Fvf9ziIrGGKp6KlVTFTXcS">保存账号</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

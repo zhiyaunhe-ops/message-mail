@@ -1,0 +1,107 @@
+# 邮件阅读器 · AI 可读接口（llms.txt）
+
+本服务是本地 IMAP 邮箱的阅读器，同时对外提供结构化 JSON 接口，供 AI / 脚本直接读取邮件。
+基础地址：http://127.0.0.1:8765
+交互式文档：/docs   接口自述：/api/ai/schema
+
+## 约定
+
+- 所有 /api/* 返回 JSON（UTF-8），时间字段为 ISO 8601。
+- `folder` 使用服务端原名（INBOX / Sent Items / Drafts …），可重复传入；传 `all` 表示全部目录。
+- `uid` 是 IMAP UID，仅在所属 folder 内唯一；全局 id 形如 `INBOX:1234`。
+- `since` / `until` 接受 `YYYY-MM-DD` 或 ISO datetime；分页用 `limit`（上限 500）+ `offset`。
+  同步类接口不传 `since` 时默认**近 1 月**（2026-08-15 这样的滚动值，不是写死的日期）。
+- `category` 邮件分类：`personal`=人工邮件；`meeting`=会议/日程；`automated`=系统自动；`promotion`=营销推广。
+  后三类合称「无聊邮件」（`is_boring=true`），可用 `?boring=true/false` 或 `?category=` 过滤。
+- `thread_id` 会话 ID：同一来回复用一封（含 In-Reply-To 串联 + 主题/参与者归并），形如 `t`+14 位十六进制。
+- `mine`：true 表示该邮件是本人发出的（发件人是自己，或位于已发送/草稿目录）。
+- **多邮箱**：本服务可配多个 IMAP 账号，每个账号有各自独立的本地索引库。所有接口都作用于
+  **当前选中的那个账号**（`GET /api/accounts` 的 `active`）。切换账号用
+  `POST /api/accounts/{name}/activate`，切换后目录 / 邮件 / 联系人 / 统计全部换成新账号的。
+
+## 推荐调用顺序
+
+1. `GET /api/status`                 确认服务与索引状态（含分类统计、会话数）
+2. `POST /api/sync` `{"all_folders": true, "since": "2026-08-15"}`   把邮件拉到本地索引（幂等、增量，自动分类+归组；不传 since = 近 1 月）
+3. `GET /api/ai/inbox?since=2026-08-15&limit=100`                    读结构化邮件（默认含清洗后的正文，截断 4000 字符）
+4. `GET /api/ai/threads?since=2026-08-15&only_grouped=true`          按会话读（省 token，聊天式输出）
+5. `GET /api/messages/{uid}?folder=INBOX`                            取单封全文与附件清单
+6. `GET /api/ai/digest?since=2026-08-15&group_by=sender`             按发件人/日期聚合，用于概览
+
+## 端点清单
+
+- GET  /api/status                       服务、账号、各目录计数、分类统计、会话统计；含 accounts（全部邮箱账号）与 active_account（当前生效的那个）
+- GET  /api/folders                      目录列表（含总数/未读数）
+- DELETE /api/folders/{name}             删除目录（服务器 + 本地索引，不可逆）；系统目录（收件箱/已发送/草稿/回收站）拒绝；参数 local_only=true 只清本地，empty=false 禁止「先清空再删」（部分服务端如 Coremail 要求目录为空才允许 DELETE，默认会先清空目录里的邮件）
+- GET  /api/accounts                     邮箱账号列表 + 当前账号；返回 {active, count, accounts:[{name,email,display_name,username,imap,smtp,aliases,default,has_password,db}], file}（不含明文密码）
+- POST /api/accounts                     新增邮箱账号；body: {name, email, display_name, imap_host, imap_port, imap_ssl, username, password, smtp_host, smtp_port, smtp_ssl, smtp_starttls, aliases:{inbox,sent,drafts,trash}, default}；带密码的新账号会直接切过去
+- PUT  /api/accounts/{name}              修改邮箱账号（password 留空 = 不改）
+- DELETE /api/accounts/{name}            删除邮箱账号；?purge=true 连本地索引库一起删（至少保留一个账号）
+- POST /api/accounts/{name}/activate     切换当前账号（换本地索引库、清缓存）
+- POST /api/accounts/{name}/test         真连一次 IMAP 验证凭据；返回目录数与样例目录名
+- GET  /api/contacts                     联系人联想；参数 q（姓名/邮箱片段，可空格分词）/limit；返回 [{name,email,count,weight,addressed,last_ts}]，按「我写过信的人 → 往来频次」排序，写信收件人/抄送补全用
+- POST /api/sync                         增量同步；body: {folder|all_folders, since, limit, force, with_body}；limit 为单目录单轮处理上限（默认 5000，即信箱容量）；since 不传 = 近 1 月。同一时刻只允许一个同步（手动或后台），撞车返回 429
+- GET  /api/config/sync                  读同步策略与自动同步状态；返回 {config:{auto_enabled,interval_minutes,auto_since_days,startup_enabled,startup_since_days,with_body,body_limit}, status:{since,startup_since,started,running,runs,last_run,next_run_in,errors}, file}
+- PUT  /api/config/sync                  改同步策略（局部更新，立即生效不用重启）；body 同上 config 字段。默认「每 10 分钟自动同步近 1 天 / 启动时同步近 1 周」
+- POST /api/config/sync/now              立刻跑一轮自动同步（用 auto_since_days 的时间窗）；已有同步在跑时返回 {ok:false, reason}
+- GET  /api/config/display               读展示配置：回复/转发引用头里 Sent: 用哪个时区；返回 {config:{utc_offset,effective,source}, file}
+- PUT  /api/config/display               改展示配置；body {utc_offset}，收固定偏移 "+08:00"/"+8"/"-07:00"，留空 = 按服务器本地时区。填成 "Asia/Hong_Kong" 这种 IANA 名会被 400 拒掉（Windows 上没有系统 tz 数据库，解析不了）。改完下一次发信生效
+- POST /api/reindex                      重建派生索引（分类+会话归组）；body: {classify_all, rebuild}
+- GET  /api/categories                   分类统计：无聊邮件占比、各类数量、会话数
+- GET  /api/messages                     信封列表；参数 folder/since/until/q/unread_only/has_attachment/category/boring/limit/offset/order
+- GET  /api/messages/{uid}               单封全文；参数 folder/include_body/body_format=text|html|both
+- GET  /api/messages/{uid}/attachment/{index}   下载附件
+- POST /api/messages/{uid}/flags         改标志；body: {folder, add:["\\Seen"], remove:[]}
+- DELETE /api/messages/{uid}?folder=...  删除邮件：COPY 到回收站 + \Deleted + EXPUNGE，本地索引同步清除
+- POST /api/send                         发邮件（SMTP，multipart/form-data）：to/cc/subject/body/reply_folder/reply_uid/forward_folder/forward_uid/draft_folder/draft_uid/files[]；to 与 cc 至少填一个（只填 cc 也合法），都不填返回 400。副本自动 APPEND 回已发送并同步进索引，带 draft_uid 时顺手清掉草稿。响应 {ok, message_id, accepted, skipped, dropped, mode, sent_folder, sent_uid, draft_removed, web_url}：mode 为 "reply"/"forward"/""，dropped 是不像地址、已从投递中剔除的串
+- POST /api/drafts                       存草稿（JSON）；body: {to, cc, subject, body, draft_folder, draft_uid, reply_folder, reply_uid, forward_folder, forward_uid}；带 draft_uid 时替换上一版，不会堆积；回复/转发上下文存进 X-Message-CLI-Reply-* / X-Message-CLI-Forward-* 头，草稿重开仍是原来那封的回复或转发
+- POST /api/compose/ai                   AI 写正文（JSON）；body: {to, cc, subject, body, recent}；读收件人最近 N 封往来邮件 + 当前草稿，返回 3 个场景方案 {options:[{title, subject, body}]}（subject 为可选主题建议，可能为空串）
+- GET  /api/config/ai                    读 AI 配置（密钥打码），来源 config/app.toml
+- PUT  /api/config/ai                    改 AI 配置；body: {enabled, base_url, api_key, model, temperature, timeout, recent_count, context_chars}（api_key 留空=不改）
+- POST /api/config/ai/test               测试 AI 接口连通性
+- GET  /api/search?q=...                 全文搜索（主题/发件人/收件人/正文）
+- GET  /api/threads                      会话列表；参数 folder/since/until/q/unread_only/boring/category/only_grouped/limit/offset/preview
+- GET  /api/threads/{thread_id}          单条会话全文（按时间顺序，含每封正文与附件）
+- GET  /api/ai/inbox                     AI 主入口：结构化列表，参数 since/until/folder/q/unread_only/boring/category/limit/offset/body_chars/include_html
+- GET  /api/ai/threads                   AI 会话入口：聊天式输出，参数同 /api/threads + body_chars/max_messages
+- GET  /api/ai/digest                    聚合统计；group_by=sender|date|subject|folder
+- GET  /api/ai/schema                    机器可读的接口自述（与本文等价）
+- GET  /api/ai/verify?since=2026-08-15   校验时间窗内各目录数量、日期范围、附件数
+## 示例
+
+读取 2026 年 7 月 1 日以来全部邮件（正文截断 4000 字符）：
+
+    curl "http://127.0.0.1:8765/api/ai/inbox?since=2026-08-15&folder=all&limit=200"
+
+只看人工邮件（滤掉会议通知/系统自动/营销推广）：
+
+    curl "http://127.0.0.1:8765/api/ai/inbox?since=2026-08-15&boring=false&limit=100"
+
+发一封带附件的邮件（multipart）：
+
+    curl -X POST "http://127.0.0.1:8765/api/send" \
+      -F "to=someone@example.com" -F "subject=Hi" -F "body=内容" \
+      -F "files=@./report.pdf"
+
+转发 INBOX 里 UID 1737101991 那封（引用原文、主题自动补 Fwd:、不挂 In-Reply-To 所以不会并回原会话）：
+
+    curl -X POST "http://127.0.0.1:8765/api/send" \
+      -F "to=someone@example.com" -F "body=见下，麻烦看一下" \
+      -F "forward_folder=INBOX" -F "forward_uid=1737101991"
+
+回复同一封（挂上 In-Reply-To / References，主题补 Re:）：
+
+    curl -X POST "http://127.0.0.1:8765/api/send" \
+      -F "to=someone@example.com" -F "body=收到，我这边排一下" \
+      -F "reply_folder=INBOX" -F "reply_uid=1737101991"
+
+把某封邮件移入回收站：
+
+    curl -X DELETE "http://127.0.0.1:8765/api/messages/1737101991?folder=INBOX"
+
+按会话读全部往返（只看多于一封的会话）：
+
+    curl "http://127.0.0.1:8765/api/ai/threads?since=2026-08-15&only_grouped=true&limit=30"
+
+Web 界面：http://127.0.0.1:8765/  （支持 5 套主题：宣纸水墨 / 瑞士极简 / 暗夜霓虹 / 复古终端 / 琉璃柔彩；
+列表头可切换「邮件 / 会话」两种视图，并按分类筛选）

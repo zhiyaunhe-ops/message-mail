@@ -1,0 +1,12 @@
+# 本机 Python 解释器路径（可选）
+#
+# 把本文件复制为 python.local.txt，写入运行本项目的 python.exe 绝对路径，
+# 托盘与静默启动脚本会优先使用它。
+#
+#   cp scripts/python.local.example.txt scripts/python.local.txt
+#
+# python.local.txt 已 gitignore，不会入库。
+# 优先级：$env:MAILUI_PYTHON > scripts\python.local.txt > 项目内 .venv > PATH 上的 python
+#
+# 示例：
+#   C:\path\to\your\venv\Scripts\python.exe

@@ -1,0 +1,15 @@
+{
+  "apps": {
+    "mail": {
+      "local_port": 8791,
+      "tailnet_port": 8443,
+      "note": "邮件 WebUI"
+    }
+  },
+  "external_serves": {
+    "443": {
+      "proxy": "http://127.0.0.1:8788",
+      "note": "TailShare 传输站（tailshare skill 管理，sync 不动它）"
+    }
+  }
+}

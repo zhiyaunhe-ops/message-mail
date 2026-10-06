@@ -1,0 +1,37 @@
+# 应用级共同配置（复制为 app.toml 后生效；app.toml 已 gitignore，不会入库）
+# 也可以在 WebUI 右上角 ⚙ 设置里直接改，改完立即生效。
+#   [ai]      AI 写正文用的接口
+#   [sync]    同步策略：后台自动同步的间隔与回溯天数、启动时同步几天
+#   [display] 回复/转发引用头里 Sent: 那一行按哪个时区显示（改完下一次发信就生效，不用重启）
+#
+# 这份头和 appconfig.ensure_example() 里的头是两处手写副本，改一处记得改另一处。
+
+[ai]
+# AI 写正文：任何 OpenAI 兼容接口都能用（OpenAI / DeepSeek / 通义 / Kimi /
+# 本地 Ollama 的 /v1 等），改 base_url 即可。api_key 敏感，app.toml 已 gitignore。
+enabled = true
+base_url = "https://api.openai.com/v1"
+api_key = "sk-xxxxxx"
+model = "gpt-4o-mini"
+temperature = 0.7
+timeout = 60
+recent_count = 10      # 生成时参考每位收件人的最近几封邮件
+context_chars = 1200   # 单封邮件摘要截断长度
+
+[sync]
+# 后台自动同步：默认每 10 分钟同步近 1 天；启动服务时同步近 1 周。
+auto_enabled = true
+interval_minutes = 10
+auto_since_days = 1
+startup_enabled = true
+startup_since_days = 7
+with_body = true       # 同步时连正文/附件一起抓
+body_limit = 0         # 单目录每轮抓正文上限，0 = 用信封上限
+
+[display]
+# 回复/转发时写在引用头里的「Sent: Monday, 15 September 2026 09:02」用哪个时区。
+#   留空 = 按服务进程所在时区（本机跑就是对的，跑在 UTC 容器里会整体偏 8 小时）。
+#   填固定偏移，接受 "+08:00" / "+0800" / "+8" / "8" / "-07:00" 这几种写法。
+# 收的是偏移而不是 "Asia/Hong_Kong" 这种名字：Windows 没有系统 tz 数据库，
+# zoneinfo 解析 IANA 名字需要额外装 tzdata，为了一个显示设置不值得加依赖。
+utc_offset = ""
