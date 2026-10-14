@@ -1,5 +1,11 @@
 # message-mail — 本地邮件 Web 阅读器 + AI 可读 API
 
+**Local-first IMAP/SMTP email client for humans and AI agents.**
+
+Sync multiple mailboxes into a searchable local SQLite index; browse and reply via a responsive Web UI, automate through a documented REST API, or connect an AI agent with an MCP server. Supports threads, attachments, AI-assisted drafting, and configurable background sync. Your mailbox data stays on infrastructure you control; AI drafting is optional and requires an explicitly configured model endpoint.
+
+**Keywords:** IMAP, SMTP, local-first email, self-hosted, SQLite, FastAPI, MCP server, AI agent, email automation.
+
 把 IMAP 邮箱收件箱搬到本地一份可搜索的 SQLite 索引，同时提供：
 - **WebUI**：5 套美学主题（`/?theme=ink|swiss|neon|terminal|glass`），三栏布局，搜索 / 标记已读 / 附件下载；窄屏（≤900px）自动切成单栏 —— 目录变成一条可横滑的胶囊、阅读区整屏覆盖带「‹ 返回列表」、弹窗铺满全屏，手机上也能用
 - **会话视图**：列表头可切换「邮件 / 会话」——把往来的多封邮件聚成一条 IM 风格的聊天（收件箱与已发送自动合并、引用历史折叠、自己发的靠右）
@@ -16,6 +22,12 @@
 - **AI 友好端点**：结构化 JSON、自动截断正文、含 `attachments` 直链；详见 `/llms.txt` 与 `/api/ai/schema`
 
 > 本项目由原 `Message-cli/email-only` 分支独立拆出，现作为单独仓库维护；这里只保留邮件相关能力。
+
+## 近期修复（2026-10）
+
+- **防止重复发信**：发送按钮在异步保存期间禁用并阻止重复提交，后端还用 `client_token` 防护同次请求重复投递；如果网络中断导致状态不确定，会提示先检查“已发送”而不是自动再次发信。
+- **草稿归并与清理**：通过持久 `draft_key` 识别同一个写信会话，避免自动保存生成多份草稿，并在发送后清理旧草稿版本；回复和转发上下文仍可恢复。
+- **回归测试**：`python scripts/test_send_idempotency.py`、`python scripts/test_send_forward.py` 和 `node scripts/test_web_logic.cjs`。
 
 ## 启动
 

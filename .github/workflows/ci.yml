@@ -1,0 +1,28 @@
+name: Mail regression tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - name: Mail regression suite (no real mailbox)
+        run: |
+          python scripts/test_send_idempotency.py
+          python scripts/test_send_forward.py
+          python scripts/test_reply_quote.py
+          python scripts/test_mail_sync_reliability.py
+          python scripts/test_thread_pagination.py
+          node scripts/test_web_logic.cjs
+          node scripts/test_chip_field.cjs

@@ -21,7 +21,7 @@ const partS = slice("/* ------------------------------ 设置（AI 接口 + 同�
                     "/* ------------------------------ 同步 ------------------------------");
 
 const harness = `
-const state = { me: "me@example.com" };
+const state = { me: "me@example.com", compose: { draft: null, reply: null, forward: null, draftKey: "K1" } };
 function el(tag, cls, text) { return { tag, cls, text, style: {}, disabled: false, title: "" }; }
 function toast() {}
 let lastCompose = null;
@@ -50,7 +50,8 @@ ${partS}
 globalThis.T = { parseAddr, normAddrs, formatAddr, splitAddrList,
                  replyTargetOf, replyAllTargets, composeReply, replyAllBtn,
                  forwardSubject, composeForward, forwardBtn, draftForwardOf,
-                 draftReplyOf, draftContextFields,
+                 draftReplyOf, draftContextFields, draftKeyOf,
+                 randId, contentFingerprint, sendTokenOf, draftContextPayload,
                  fileKey, appendFiles, removeFileAt, sumBytes, applyAiOption,
                  displayPayload,
                  localDateStr, daysAgoStr, sinceFromRange, rangeLabel, applyRange, textToHtml, nodes: _nodes,
@@ -160,6 +161,31 @@ eq(T.draftContextFields({ folder: "Drafts", uid: 3 }, null, { folder: "INBOX", u
    { draft_folder: "Drafts", draft_uid: 3, reply_folder: "", reply_uid: 0,
      forward_folder: "INBOX", forward_uid: 9 },
    "转发草稿带的是 forward_* 而不是 reply_*");
+
+/* ---- 发信幂等键 / 草稿身份（2026-10-13 重复投递与草稿堆积的修复） ---- */
+console.log("[发信幂等键 / 草稿身份]");
+eq(T.draftKeyOf({ headers: { x_draft: "key-abc" } }), "key-abc", "草稿头里的 draft_key 读得回来");
+eq(T.draftKeyOf({ headers: { x_draft: null } }), "", "key 不是字符串 -> 空串（老草稿没有这个头）");
+eq(T.draftKeyOf({ headers: {} }), "", "没有该头 -> 空串");
+eq(T.draftKeyOf({}), "", "没有 headers 也不报错");
+
+const tkBase = T.sendTokenOf("S1", { to: "a@b.c", cc: "", subject: "s", body: "b" });
+eq(T.sendTokenOf("S1", { to: "a@b.c", cc: "", subject: "s", body: "b" }), tkBase,
+   "同窗口 + 同内容 -> 同一个幂等键（后端据此拦掉重复投递）");
+eq(T.sendTokenOf("S1", { to: "a@b.c", cc: "", subject: "s", body: "b!" }) !== tkBase, true,
+   "改了正文 -> 换键，允许正常重发");
+eq(T.sendTokenOf("S1", { to: "x@b.c", cc: "", subject: "s", body: "b" }) !== tkBase, true,
+   "改了收件人 -> 换键");
+eq(T.sendTokenOf("S2", { to: "a@b.c", cc: "", subject: "s", body: "b" }) !== tkBase, true,
+   "换了写信窗口 -> 换键");
+eq(T.contentFingerprint(""), T.contentFingerprint(undefined), "空内容指纹不炸");
+
+const draftCtx = T.draftContextPayload();
+eq(draftCtx.draft_key, "K1", "存草稿带上会话的 draft_key（后端按它顶掉同源旧版）");
+eq(draftCtx.draft_folder, "", "没有草稿版本时 draft_* 仍为空，没被 draft_key 挤掉");
+eq(draftCtx.forward_uid, 0, "forward_* 也照旧");
+eq(typeof T.randId(), "string", "randId 给出字符串");
+eq(T.randId() !== T.randId(), true, "两次 randId 不相同（会话身份不会撞车）");
 
 eq(T.forwardBtn({ folder: "INBOX", uid: 7 }).disabled, false, "有 folder/uid 就能转发");
 eq(T.forwardBtn({}).disabled, true, "连 folder/uid 都没有 -> 置灰（点不了）");

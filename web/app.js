@@ -48,7 +48,7 @@
     // seq   : 写信框的代数。异步动作（例如转发时去取原附件）回来时比对一下，
     //         免得窗口已经关了、或者又开了另一封，附件落进不该落的窗口。
     // ai    : 最近一次 AI 生成的结果，收起面板后仍留着，可以再展开
-    compose: { reply: null, forward: null, draft: null, dirty: false, timer: null, saving: null, sending: false, files: [], seq: 0, ai: null },
+    compose: { reply: null, forward: null, draft: null, draftKey: null, clientToken: null, dirty: false, timer: null, saving: null, sending: false, files: [], seq: 0, ai: null },
   };
 
   const DRAFT_DEBOUNCE = 1800;  // 停止输入 1.8s 后自动存草稿
@@ -698,6 +698,7 @@
         subject: m.subject || "",
         body: m.body_text || "",
         draft: { folder: m.folder, uid: m.uid },
+        draftKey: draftKeyOf(m),   // 复用草稿自己的 key：继续编辑后再存/再发都不会另起一份
         reply: draftReplyOf(m),
         forward: draftForwardOf(m),
       });
@@ -1399,6 +1400,40 @@
     };
   }
 
+  /** 本次写信会话的随机身份：草稿归并（draftKey）与发信幂等（clientToken）都用它。 */
+  function randId() {
+    try {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    } catch (e) {}
+    return "k" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  }
+
+  /** 内容指纹（不做安全用途，只用来判断「这次提交与上次是不是同一封」）。 */
+  function contentFingerprint(s) {
+    let h = 0;
+    for (let i = 0; i < (s || "").length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+
+  /**
+   * 发信幂等键：同一个写信窗口 + 同一份内容 = 同一次提交。
+   * 没改内容又点一次 -> 同一个 token，后端不会重复投递（同一次点击被并发提交两次时靠它兜住）；
+   * 改了收件人 / 正文 -> 新 token，允许正常重发。
+   */
+  function sendTokenOf(sessionToken, f) {
+    return (sessionToken || "") + ":" +
+      contentFingerprint([f.to, f.cc, f.subject, f.body].join("\u0000"));
+  }
+
+  /** 存草稿 / 发信一起带上的「非正文」上下文：本次会话的草稿身份，以及顶掉哪一版。 */
+  function draftContextPayload() {
+    // draft_key 是会话级的，不属于 draft / reply / forward 三者，单独拼上
+    return Object.assign(
+      { draft_key: state.compose.draftKey || "" },
+      draftContextFields(state.compose.draft, state.compose.reply, state.compose.forward),
+    );
+  }
+
   /* ------------------------------ 写邮件 / 删除 ------------------------------ */
 
   function composeFields() {
@@ -1481,11 +1516,6 @@
     state.compose.timer = setTimeout(() => { saveDraft(); }, DRAFT_DEBOUNCE);
   }
 
-  /** 草稿要一起带上的「非正文」上下文：顶掉哪一版、以及这封本来是回复谁 / 转发哪封。 */
-  function draftContextPayload() {
-    return draftContextFields(state.compose.draft, state.compose.reply, state.compose.forward);
-  }
-
   async function saveDraft(force) {
     if (state.compose.sending) return null;   // 正在发送，别再存草稿（否则发完会剩一版）
     const f = composeFields();
@@ -1494,6 +1524,12 @@
     clearTimeout(state.compose.timer);
     state.compose.dirty = false;
     const d = state.compose.draft;
+    // 上一次保存还在路上就等它：两次并发保存会让后端的「APPEND 新的 -> 删旧版」互相踩，
+    // 服务器上反而会留下两份同 key 草稿。
+    if (state.compose.saving) {
+      try { await state.compose.saving; } catch (e) {}
+      if (state.compose.sending) return null;   // 等待期间点了发送，这次就不用再存了
+    }
     // 存成「可等待的一次任务」挂在 state 上：发送时必须先等它回来，
     // 才知道这次自动保存最终落到了哪个 uid（否则它会晚于发送登记，多留一版草稿）。
     const job = (async () => {
@@ -1529,6 +1565,11 @@
     state.compose.reply = prefill.reply || null;
     state.compose.forward = prefill.forward || null;
     state.compose.draft = prefill.draft || null;
+    // 本次写信会话的身份：草稿归并（draftKey）与发信幂等（clientToken）都用它。
+    // 从草稿箱继续编辑时复用草稿头里存的 key —— 同一次写信才不会因为关窗重开而断链，
+    // 断链的后果是同主题草稿在草稿箱里一份份堆起来（实测堆过 6 份）。
+    state.compose.draftKey = prefill.draftKey || randId();
+    state.compose.clientToken = randId();
     state.compose.dirty = false;
     state.compose.saving = null;
     state.compose.sending = false;
@@ -1586,6 +1627,13 @@
   function draftForwardOf(m) {
     const x = (m && m.headers && m.headers.x_forward) || null;
     return x && x.folder && x.uid ? { folder: x.folder, uid: x.uid } : null;
+  }
+
+  /** 草稿的身份标记（X-Message-CLI-Draft-Key 头）。
+   *  从草稿箱继续编辑时复用它，后端才认得出「还是那一封」，不必依赖服务器 UID 链。 */
+  function draftKeyOf(m) {
+    const x = m && m.headers && m.headers.x_draft;
+    return typeof x === "string" ? x : "";
   }
 
   /** 收件人/抄送字段规整成 [{name, email}]，丢掉空值和重复。 */
@@ -2269,6 +2317,9 @@
 
   async function submitCompose(e) {
     e.preventDefault();
+    // 重入保护：发送期间再点（或再按回车提交）一律忽略。
+    // 原来只把 sending 写成 true 却没有任何地方读它，等于没有这道闸。
+    if (state.compose.sending) return;
     const btn = $("#sendBtn");
     const status = $("#composeStatus");
     const f = composeFields();           // 顺便把输入框里没回车的地址转成 chip
@@ -2281,15 +2332,18 @@
     }
     state.compose.sending = true;        // 先立旗：发送期间不再产生新的自动保存
     clearTimeout(state.compose.timer);   // 别让待触发的自动保存插在发送中间
-    // 已经上路的那次自动保存要等回来 —— 它稍后返回的新草稿 uid 会覆盖 state.compose.draft，
-    // 如果不等，本次发送登记的仍是旧 uid，发完草稿箱里就多出一版（AI 生成完接着点发送最容易踩）。
-    if (state.compose.saving) {
-      try { await state.compose.saving; } catch (e) {}
-    }
+    // 禁用按钮必须放在任何 await 之前：等自动保存的那段时间里按钮若还能点，
+    // 第二次触发就会并发走到下面那个 fetch，同一封发两遍
+    // （2026-10-13 实测：两封的 Message-ID 只差 1 个时间单位，≤10ms）。
     btn.disabled = true;
     btn.textContent = "发送中…";
     setComposeStatus("");
     try {
+      if (state.compose.saving) {
+        // 已经上路的那次自动保存要等回来 —— 它稍后返回的新草稿 uid 会覆盖 state.compose.draft，
+        // 如果不等，本次发送登记的仍是旧 uid，发完草稿箱里就多出一版（AI 生成完接着点发送最容易踩）。
+        try { await state.compose.saving; } catch (e) {}
+      }
       const fd = new FormData();
       fd.set("to", f.to);
       fd.set("cc", f.cc);
@@ -2307,12 +2361,18 @@
         fd.set("draft_folder", state.compose.draft.folder);
         fd.set("draft_uid", String(state.compose.draft.uid));
       }
+      // 按会话身份收网：草稿箱里同 key 的历史版本（关窗重开留下的那些）一并清掉 ——
+      // 只传 draft_uid 的话，从「新邮件」发起的发送一个都不会删。
+      fd.set("draft_key", state.compose.draftKey || "");
+      // 幂等键：同一个写信窗口 + 同一份内容，后端只投递一次
+      fd.set("client_token", sendTokenOf(state.compose.clientToken, f));
       for (const file of state.compose.files) fd.append("files", file, file.name);
       const r = await api("/api/send", { method: "POST", body: fd });
       toast(
         `✓ 已发送至 ${r.accepted.join("、")}` +
         ((r.dropped && r.dropped.length) ? `（已忽略 ${r.dropped.join("、")}：不是有效邮箱地址）` : "") +
-        (r.sent_uid ? `（副本已存「${folderLabel(r.sent_folder)}」）` : ""),
+        (r.sent_uid ? `（副本已存「${folderLabel(r.sent_folder)}」）` : "") +
+        ((r.draft_removed > 1) ? `（顺带清理了 ${r.draft_removed} 版旧草稿）` : ""),
         4200
       );
       clearTimeout(state.compose.timer);

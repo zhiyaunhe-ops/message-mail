@@ -234,6 +234,7 @@ def sync_folder(
                         # 草稿箱里那封记着「本来要回复谁 / 转发哪封」，前端据此恢复上下文
                         "x_reply": parsed.get("reply_context"),
                         "x_forward": parsed.get("forward_context"),
+                        "x_draft": parsed.get("draft_key"),
                     }
                 try:
                     store.upsert_message_with_body(
