@@ -26,6 +26,8 @@ REPLY_UID_HEADER = "X-Message-CLI-Reply-UID"
 # 转发同理：草稿要记住「本来在转发哪封」，否则继续编辑再发就丢掉了引用块归属。
 FORWARD_FOLDER_HEADER = "X-Message-CLI-Forward-Folder"
 FORWARD_UID_HEADER = "X-Message-CLI-Forward-UID"
+# Stable identity of a compose session, persisted with server-side drafts.
+DRAFT_KEY_HEADER = "X-Message-CLI-Draft-Key"
 
 
 # 地址合法性：'Family, Given'、'xu'、'Sender Sample' 这种没有 @ 的串，getaddresses() 也会

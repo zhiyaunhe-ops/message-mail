@@ -13,6 +13,7 @@ from email import policy
 from email.utils import getaddresses, parsedate_to_datetime
 
 from .mailout import (
+    DRAFT_KEY_HEADER,
     FORWARD_FOLDER_HEADER,
     FORWARD_UID_HEADER,
     REPLY_FOLDER_HEADER,
@@ -258,6 +259,9 @@ def parse_raw(raw: bytes) -> dict:
         if fwd_folder and fwd_uid.isdigit()
         else None
     )
+    # 草稿的身份标记（见 api_mail.save_draft）：前端从草稿箱继续编辑时复用它，
+    # 这样保存 / 发送都还能认出「是同一封草稿」，不必依赖服务器 UID 链。
+    draft_key = _sig(DRAFT_KEY_HEADER) or None
 
     return {
         "message_id": _decode_header_value(msg, "Message-ID").strip(),
@@ -278,5 +282,6 @@ def parse_raw(raw: bytes) -> dict:
         "signals": signals,
         "reply_context": reply_context,
         "forward_context": forward_context,
+        "draft_key": draft_key,
         "_raw": raw,
     }

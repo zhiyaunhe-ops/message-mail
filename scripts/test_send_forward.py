@@ -131,7 +131,7 @@ def send(**kw):
     SMTP.__init__()
     args = dict(to="", cc="", subject="", body="",
                 reply_folder="", reply_uid=0, forward_folder="", forward_uid=0,
-                draft_folder="", draft_uid=0, files=[])
+                draft_folder="", draft_uid=0, draft_key="", client_token="", files=[])
     args.update(kw)
     return api_mail.send_mail(**args)
 

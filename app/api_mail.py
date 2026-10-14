@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -592,6 +593,107 @@ def _context_subject(mode: str, subject: str, orig_subject: str) -> str:
     return _subject_with("Re:" if mode == "reply" else "Fwd:", orig_subject)
 
 
+# ---------------------------------------------------------------- 草稿归并
+def _draft_uids_by_key(c, folder: str, key: str) -> list[int]:
+    """草稿箱里带同一个 draft_key 的全部版本（服务器 UID）。"""
+    c.select(folder, readonly=False)
+    return c.search_uids(["HEADER", mailout.DRAFT_KEY_HEADER, key])
+
+
+def _purge_stale_drafts(s: Store, folder: str, keep_uid: int = 0,
+                        key: str = "", uid_hint: int = 0) -> int:
+    """清掉同一封草稿的旧版本（服务器 + 本地索引），返回清掉几封。
+
+    为什么不能只删「前端手里那个 uid」：同一次写信在关窗重开 / 刷新页面后会留下
+    多个版本，而前端每次只记得最新那一个 —— 2026-10-13 实测草稿箱里同一封堆了 6 份，
+    发出去之后一份都没删。draft_key 是那份稳定的身份，uid_hint 只管没有 key 的老草稿。
+    """
+    stale: set[int] = set()
+    if uid_hint and uid_hint != keep_uid:
+        stale.add(uid_hint)
+    if key:
+        try:
+            with ctx.imap_write() as c:
+                stale |= {u for u in _draft_uids_by_key(c, folder, key) if u != keep_uid}
+        except Exception as e:
+            ctx.sync.log_add(f"draft key lookup failed (key={key[:8]}): {e}")
+    removed = 0
+    for u in stale:
+        try:
+            with ctx.imap_write() as c:
+                c.delete_message(u, folder)
+        except Exception as e:
+            ctx.sync.log_add(f"draft replace failed (uid={u}): {e}")
+            continue
+        s.delete_message(folder, u)
+        removed += 1
+    return removed
+
+
+_draft_locks: dict[str, threading.Lock] = {}
+_draft_locks_guard = threading.Lock()
+
+
+def _draft_lock_for(key: str) -> threading.Lock:
+    """同一个 draft_key 的保存串行执行。
+
+    并发保存两版同 key 草稿时，「APPEND 新的 -> 搜出同 key -> 删旧的」会交错：
+    A 删掉 B 刚写的、B 删掉 A 刚写的，最后一份都不剩。锁在这里而不是前端，
+    因为前端会关窗、会刷新、会有多个标签页。
+    """
+    with _draft_locks_guard:
+        return _draft_locks.setdefault(key, threading.Lock())
+
+
+# ---------------------------------------------------------------- 发信幂等
+# 2026-10-13 实测的重复投递：前端在「自动保存在途」时按钮还没禁用，同一次点击被并发
+# 提交了两次 —— 两封的 Message-ID 只差 1 个时间单位（≤10ms）。前端已加重入保护，
+# 这里是第二道防线：同一个 client_token 只会真正投递一次。
+#
+# 收尾状态决定重复请求怎么答：
+#   done      SMTP 已受理 -> 复用首次结果，不再投递
+#   inflight  同一 token 正在发送中 -> 409
+#   uncertain 网络中断 / 超时，无法确定对方是否已收到 -> 409（宁可拒绝，也不再发一封）
+# 明确的业务失败（如「没有有效收件人」）不占坑，允许原样重试。
+_SEND_TOKEN_TTL = 600.0
+_send_lock = threading.Lock()
+_send_tokens: dict[str, dict] = {}      # token -> {"state", "result", "at"}
+
+
+def _send_token_claim(token: str) -> dict | None:
+    """首次提交返回 None（占坑）；重复提交返回 {"reuse": {...}} 或 {"status", "detail"}。"""
+    if not token or not isinstance(token, str):
+        return None
+    now = time.time()
+    with _send_lock:
+        for k, v in list(_send_tokens.items()):
+            if now - v["at"] > _SEND_TOKEN_TTL:
+                _send_tokens.pop(k, None)
+        ent = _send_tokens.get(token)
+        if ent is None:
+            _send_tokens[token] = {"state": "inflight", "result": {}, "at": now}
+            return None
+        ent = dict(ent)
+    if ent["state"] == "done":
+        return {"reuse": ent["result"]}
+    if ent["state"] == "uncertain":
+        return {"status": 409, "detail": (
+            "上一封的网络连接中断，无法确认对方是否已收到 —— 为避免重复投递，这里不再重发。"
+            "请先到「已发送」确认；确实要重发的话，重新写一封再发。"
+        )}
+    return {"status": 409, "detail": "同一封邮件正在发送中，已忽略这次重复提交。"}
+
+
+def _send_token_settle(token: str, state: str, result: dict | None = None) -> None:
+    if not token or not isinstance(token, str):
+        return
+    with _send_lock:
+        if state == "retry":
+            _send_tokens.pop(token, None)   # 明确的业务失败：允许原样重试
+        else:
+            _send_tokens[token] = {"state": state, "result": result or {}, "at": time.time()}
+
+
 @router.post("/api/send", summary="发邮件（SMTP，可选附件；支持回复 / 转发上下文，自动存副本到已发送）")
 def send_mail(
     to: str = Form("", description="收件人，多个用逗号分隔；支持 Name <a@b.com> 形式"),
@@ -604,8 +706,17 @@ def send_mail(
     forward_uid: int = Form(0, description="若为转发：原信 UID"),
     draft_folder: str = Form("", description="若这封由草稿发出：草稿所在目录（发完自动清理）"),
     draft_uid: int = Form(0, description="若这封由草稿发出：草稿 UID"),
+    draft_key: str = Form("", description="草稿身份标记（见 /api/drafts）：发完清掉同 key 的全部版本"),
+    client_token: str = Form("", description="幂等键：同一次提交重复到达时只投递一次，不重复发信"),
     files: list[UploadFile] = File(default=[], description="附件，可多个"),
 ):
+    # 直调本函数（不经 FastAPI 表单解析，比如 scripts/test_send_forward.py）时，
+    # Form(...) 的默认值拿到的是 FieldInfo 对象而不是字符串 —— 归一化一下，
+    # 否则同一个 FieldInfo 会被当成合法的 draft_key / client_token 反复参与判定。
+    client_token = client_token if isinstance(client_token, str) else ""
+    draft_key = draft_key if isinstance(draft_key, str) else ""
+    draft_folder = draft_folder if isinstance(draft_folder, str) else ""
+
     acc = account()
     s = store()
 
@@ -622,6 +733,14 @@ def send_mail(
     # （最常见的就是「回复全部」时删掉别人、只留下自己）
     if (raw_to.strip() or raw_cc.strip()) and not (to.strip() or cc.strip()):
         raise HTTPException(400, "收件人里只有你自己（发送时会自动去掉自己），请再填一个别的收件人")
+
+    # 幂等：同一个 client_token 只真正投递一次。占坑放在前置校验之后 ——
+    # 否则一次「收件人写错了」的 400 会把 token 用掉，改好再发反而被当成重复提交。
+    claim = _send_token_claim(client_token)
+    if claim is not None:
+        if "reuse" in claim:
+            return {**claim["reuse"], "duplicate": True}
+        raise HTTPException(claim["status"], claim["detail"])
 
     in_reply_to, references = "", ""
     orig_subject = ""
@@ -677,9 +796,12 @@ def send_mail(
         result = mailout.send_message(acc, msg)
     except mailout.MailOutError as e:
         # 发信失败要留痕：收件人是谁、卡在哪一步 —— 光看前端那句红字查不出原因
+        _send_token_settle(client_token, "retry")   # 说得清原因的失败，允许原样重试
         ctx.sync.log_add(f"send failed ({mode or 'new'}): to={to!r} cc={cc!r} -> {e}")
         raise HTTPException(400, str(e))
     except Exception as e:
+        # 网络中断 / 超时：对方到底收到没有无从得知，锁住这个 token —— 再投一次就是重复发信
+        _send_token_settle(client_token, "uncertain")
         ctx.sync.log_add(f"send error ({mode or 'new'}): to={to!r} cc={cc!r} -> {e!r}")
         raise HTTPException(500, f"发送失败: {e}")
 
@@ -697,22 +819,20 @@ def send_mail(
     except Exception as e:
         ctx.sync.log_add(f"sent sync failed: {e}")
 
-    # 已发出 -> 草稿箱里的那一版没用了，直接清掉（失败不影响发信结果）
-    draft_removed = False
-    if draft_uid:
-        dfolder = draft_folder or acc.aliases.get("drafts", "Drafts")
+    # 已发出 -> 草稿箱里这一封的**所有版本**都没用了，全部清掉（失败不影响发信结果）。
+    # 只删 draft_uid 是不够的：从「新邮件」发起的发送根本不传 uid，同一次写信在关窗重开后
+    # 留下的历史版本也没人认领 —— 2026-10-13 实测 6 份草稿一份都没删。
+    dfolder = draft_folder or acc.aliases.get("drafts", "Drafts")
+    draft_removed = 0
+    if draft_uid or draft_key:
         try:
-            with ctx.imap_write() as c:
-                c.delete_message(draft_uid, dfolder)
-            # 服务器删掉了还不够：前端读的是本地索引，不一起清掉草稿箱里还会留着这一版
-            s.delete_message(dfolder, draft_uid)
-            draft_removed = True
+            draft_removed = _purge_stale_drafts(s, dfolder, key=draft_key, uid_hint=draft_uid)
         except Exception as e:
             ctx.sync.log_add(f"draft cleanup failed: {e}")
 
     ctx.cache.invalidate(CACHE_KEY_CONTACTS)   # 刚联系过的人排到前面
 
-    return {
+    payload = {
         "ok": True,
         "message_id": result["message_id"],
         "accepted": result["accepted"],
@@ -721,9 +841,11 @@ def send_mail(
         "mode": mode,
         "sent_folder": sent_folder,
         "sent_uid": sent_uid,
-        "draft_removed": draft_removed,
+        "draft_removed": draft_removed,   # 清掉了几版草稿（0 表示本来就没有待清理的）
         "web_url": f"/?folder={sent_folder}&uid={sent_uid}" if sent_uid else None,
     }
+    _send_token_settle(client_token, "done", payload)
+    return payload
 
 
 # ---------------------------------------------------------------- 草稿
@@ -734,15 +856,20 @@ class DraftIn(BaseModel):
     body: str = ""
     draft_folder: str = ""
     draft_uid: int = 0          # 上一版草稿的 UID，有的话会被新版本顶掉
+    draft_key: str = ""         # 本次写信会话的稳定身份：同 key 的旧版本全部被顶掉
     reply_folder: str = ""      # 这封本来是回复哪封：存进 X-Message-CLI-Reply-* 头
     reply_uid: int = 0          # （否则关闭窗口再从草稿箱打开，回复就变成新邮件了）
     forward_folder: str = ""    # 这封本来是转发哪封：X-Message-CLI-Forward-* 头
     forward_uid: int = 0        # （同理，丢了的话草稿重开就不知道引用的是哪封了）
 
 
-@router.post("/api/drafts", summary="存草稿（APPEND 到草稿箱；带 draft_uid 则替换上一版）")
+@router.post("/api/drafts", summary="存草稿（APPEND 到草稿箱；按 draft_key / draft_uid 顶掉同源旧版）")
 def save_draft(d: DraftIn):
-    """写信界面边写边存：同一封草稿反复保存不会堆积，服务器上始终只留最新一版。"""
+    """写信界面边写边存：同一封草稿反复保存不会堆积，服务器上始终只留最新一版。
+
+    归并靠两层：draft_key（前端每开一次写信窗口生成一个，关窗重开也不断链）+ draft_uid
+    （兜底，管那些没有 key 的老草稿）。同 key 的保存串行执行，见 _draft_lock_for。
+    """
     acc = account()
     s = store()
     folder = d.draft_folder or acc.aliases.get("drafts", "Drafts")
@@ -750,16 +877,19 @@ def save_draft(d: DraftIn):
         raise HTTPException(400, "草稿是空的，无需保存")
 
     extra_headers: dict[str, str] = {}
+    if d.draft_key:
+        # 身份落进头里：从草稿箱继续编辑时前端才认得出「还是那一封」
+        extra_headers[mailout.DRAFT_KEY_HEADER] = d.draft_key
     if d.reply_folder and d.reply_uid:
-        extra_headers = {
+        extra_headers.update({
             mailout.REPLY_FOLDER_HEADER: d.reply_folder,
             mailout.REPLY_UID_HEADER: str(d.reply_uid),
-        }
+        })
     elif d.forward_folder and d.forward_uid:
-        extra_headers = {
+        extra_headers.update({
             mailout.FORWARD_FOLDER_HEADER: d.forward_folder,
             mailout.FORWARD_UID_HEADER: str(d.forward_uid),
-        }
+        })
 
     try:
         msg = mailout.build_message(
@@ -771,37 +901,41 @@ def save_draft(d: DraftIn):
         raise HTTPException(400, str(e))
     raw = msg.as_bytes()
 
+    # 同 key 的保存串行：并发两次「APPEND 新的 -> 搜同 key -> 删旧的」会交错，
+    # A 删掉 B 刚写的、B 删掉 A 刚写的，最后一份都不剩。
+    lock = _draft_lock_for(d.draft_key) if d.draft_key else None
+    if lock is not None:
+        lock.acquire()
     try:
-        with ctx.imap_write() as c:
-            uid = c.append_message(raw, folder, flags=r"(\Seen \Draft)")
-    except Exception as e:
-        raise HTTPException(500, f"草稿保存失败：{e}")
-
-    # APPEND 返回的 UID 是 uidnext-1 的推测值，同步后用 Message-ID 换回真实 UID
-    try:
-        with ctx.imap_write() as c:
-            syncmod.sync_folder(c, s, folder, since=time.strftime("%Y-%m-%d"))
-        row = s.conn.execute(
-            "SELECT uid FROM messages WHERE folder=? AND message_id=?", (folder, msg["Message-ID"])
-        ).fetchone()
-        if row:
-            uid = int(row["uid"])
-    except Exception as e:
-        ctx.sync.log_add(f"draft sync failed: {e}")
-
-    # 顶掉上一版草稿
-    if d.draft_uid and d.draft_uid != uid:
         try:
             with ctx.imap_write() as c:
-                c.delete_message(d.draft_uid, folder)
-            s.delete_message(folder, d.draft_uid)
+                uid = c.append_message(raw, folder, flags=r"(\Seen \Draft)")
         except Exception as e:
-            ctx.sync.log_add(f"draft replace failed: {e}")
+            raise HTTPException(500, f"草稿保存失败：{e}")
+
+        # APPEND 返回的 UID 是 uidnext-1 的推测值，同步后用 Message-ID 换回真实 UID
+        try:
+            with ctx.imap_write() as c:
+                syncmod.sync_folder(c, s, folder, since=time.strftime("%Y-%m-%d"))
+            row = s.conn.execute(
+                "SELECT uid FROM messages WHERE folder=? AND message_id=?", (folder, msg["Message-ID"])
+            ).fetchone()
+            if row:
+                uid = int(row["uid"])
+        except Exception as e:
+            ctx.sync.log_add(f"draft sync failed: {e}")
+
+        # 顶掉同一封的历史版本（draft_key 为主，draft_uid 兜底）
+        _purge_stale_drafts(s, folder, keep_uid=uid, key=d.draft_key, uid_hint=d.draft_uid)
+    finally:
+        if lock is not None:
+            lock.release()
 
     return {
         "ok": True,
         "uid": uid,
         "folder": folder,
+        "draft_key": d.draft_key,
         "saved_at": time.strftime("%H:%M:%S"),
         "chars": len(d.body or ""),
     }
