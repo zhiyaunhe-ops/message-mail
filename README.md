@@ -226,3 +226,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
+## Related documents
+
+按需阅读：README 是功能和安装入口，具体配置或研究资料只在当前任务需要时打开。Agent 不应为了“完成阅读顺序”加载全部文件。
+
+- [MCP server setup — connecting AI clients to Message-cli](docs/mcp-setup.example.md)

@@ -119,3 +119,7 @@ account, folder counts and module availability. Typical failures:
 - Do not expose `mcp_server.py` itself over the network; it has no
   authentication of its own. Remote access goes through the tailnet URL as
   described above (private tailnet only).
+
+## Related documents
+
+- [README / 总入口](../README.md)
